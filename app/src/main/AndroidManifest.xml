@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <queries>
+        <package android:name="nodomain.freeyourgadget.gadgetbridge" />
+        <package android:name="nodomain.freeyourgadget.gadgetbridge.nightly" />
+        <package android:name="nodomain.freeyourgadget.gadgetbridge.nightly_nopebble" />
+        <package android:name="com.espruino.gadgetbridge.banglejs" />
+        <package android:name="com.espruino.gadgetbridge.banglejs.nightly" />
+    </queries>
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application
+        android:name=".MiBandMcpApplication"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.MiBandMCP">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".service.McpForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+
+        <receiver
+            android:name=".data.gb.GadgetbridgeBroadcastReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="nodomain.freeyourgadget.gadgetbridge.action.ACTIVITY_SYNC_FINISH" />
+                <action android:name="nodomain.freeyourgadget.gadgetbridge.action.DATABASE_EXPORT_SUCCESS" />
+                <action android:name="nodomain.freeyourgadget.gadgetbridge.action.DATABASE_EXPORT_FAIL" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>

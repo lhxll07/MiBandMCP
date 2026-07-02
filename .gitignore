@@ -1,0 +1,16 @@
+.gradle/
+.kotlin/
+.idea/
+local.properties
+/app/build/
+build/
+
+*.log
+*.keystore
+*.jks
+*.preferences_pb
+
+device_Gadgetbridge*.sqlite3
+data/*.sqlite3
+window_dump*.xml
+mcp_window_dump.xml
