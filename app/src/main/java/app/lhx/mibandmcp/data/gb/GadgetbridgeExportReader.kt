@@ -3,7 +3,9 @@ package app.lhx.mibandmcp.data.gb
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
+import androidx.core.net.toUri
 import app.lhx.mibandmcp.model.ActivitySummary
+import app.lhx.mibandmcp.model.AppSnapshot
 import app.lhx.mibandmcp.model.BatteryStatus
 import app.lhx.mibandmcp.model.BandStatus
 import app.lhx.mibandmcp.model.DailyMetrics
@@ -18,25 +20,13 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.max
 
-data class ImportedBandSnapshot(
-    val bandStatus: BandStatus,
-    val deviceProfile: DeviceProfile,
-    val activitySummary: ActivitySummary,
-    val dailyMetrics: DailyMetrics,
-    val heartRateSample: HeartRateSample,
-    val batteryStatus: BatteryStatus,
-    val stressSample: StressSample,
-    val sleepSummary: SleepSummary,
-    val syncStatus: SyncStatus,
-)
-
 class GadgetbridgeExportReader(context: Context) {
     private val appContext = context.applicationContext
     private val cacheFile = File(appContext.cacheDir, "gadgetbridge-import.sqlite3")
     private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
-    fun readFromUri(uriString: String): ImportedBandSnapshot {
-        val uri = Uri.parse(uriString)
+    fun readFromUri(uriString: String): AppSnapshot {
+        val uri = uriString.toUri()
         copyToCache(uri)
         val db = SQLiteDatabase.openDatabase(cacheFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
         db.use { database ->
@@ -55,7 +45,7 @@ class GadgetbridgeExportReader(context: Context) {
                 sleep.updatedAtEpochMillis,
             ).filterNotNull().maxOrNull()
 
-            return ImportedBandSnapshot(
+            return AppSnapshot(
                 bandStatus = BandStatus(
                     gadgetbridgeInstalled = true,
                     exportGranted = true,

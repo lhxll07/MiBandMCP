@@ -2,10 +2,11 @@ package app.lhx.mibandmcp.data.gb
 
 import android.content.Intent
 import android.content.Context
-import android.net.Uri
 import android.provider.DocumentsContract
 import android.util.Log
+import androidx.core.net.toUri
 import app.lhx.mibandmcp.R
+import app.lhx.mibandmcp.util.localizedString
 import app.lhx.mibandmcp.data.prefs.SettingsStore
 import app.lhx.mibandmcp.data.snapshot.SnapshotRepository
 import kotlinx.coroutines.CoroutineScope
@@ -17,7 +18,6 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
 class GadgetbridgeBridge(
@@ -33,10 +33,14 @@ class GadgetbridgeBridge(
     private val refreshMutex = Mutex()
 
     fun requestRefresh() {
+        if (!refreshMutex.tryLock()) {
+            Log.d(logTag, "requestRefresh() ignored: refresh already running")
+            return
+        }
         Log.d(logTag, "requestRefresh() queued")
-        snapshotRepository.setRefreshing(appContext.getString(R.string.refresh_stage_queued))
+        snapshotRepository.setRefreshing(appContext.localizedString(R.string.refresh_stage_queued))
         scope.launch {
-            refreshMutex.withLock {
+            try {
                 runCatching {
                     performRefresh()
                 }.onFailure {
@@ -45,12 +49,14 @@ class GadgetbridgeBridge(
                     snapshotRepository.setRefreshError(
                         gadgetbridgeInstalled = findInstalledPackageName() != null,
                         exportGranted = !preferences.exportUri.isNullOrBlank(),
-                        message = appContext.getString(
+                        message = appContext.localizedString(
                             R.string.intent_request_failed,
                             it.message?.takeIf(String::isNotBlank) ?: it::class.java.simpleName,
                         ),
                     )
                 }
+            } finally {
+                refreshMutex.unlock()
             }
         }
     }
@@ -84,7 +90,7 @@ class GadgetbridgeBridge(
             "performRefresh() start installed=$installed packageName=$packageName exportUriPresent=${!exportUri.isNullOrBlank()}",
         )
 
-        snapshotRepository.setRefreshing(appContext.getString(R.string.refresh_stage_preparing))
+        snapshotRepository.setRefreshing(appContext.localizedString(R.string.refresh_stage_preparing))
         snapshotRepository.updateIntegrationState(
             gadgetbridgeInstalled = installed,
             exportGranted = !exportUri.isNullOrBlank(),
@@ -96,17 +102,17 @@ class GadgetbridgeBridge(
             snapshotRepository.setRefreshError(
                 gadgetbridgeInstalled = installed,
                 exportGranted = false,
-                message = appContext.getString(R.string.no_export_file_selected),
+                message = appContext.localizedString(R.string.no_export_file_selected),
             )
             return
         }
 
         if (packageName != null) {
             val exportMetadataBefore = readExportMetadata(exportUri)
-            snapshotRepository.setRefreshing(appContext.getString(R.string.refresh_stage_requesting_sync))
+            snapshotRepository.setRefreshing(appContext.localizedString(R.string.refresh_stage_requesting_sync))
             val syncRequestStartedAt = System.currentTimeMillis()
             sendCommand(packageName, GadgetbridgeActions.CommandActivitySync)
-            snapshotRepository.setRefreshing(appContext.getString(R.string.refresh_stage_waiting_sync))
+            snapshotRepository.setRefreshing(appContext.localizedString(R.string.refresh_stage_waiting_sync))
             val syncResult = waitForEvent(
                 expected = BridgeEvent.SyncFinished,
                 notBeforeMillis = syncRequestStartedAt,
@@ -114,16 +120,16 @@ class GadgetbridgeBridge(
             )
             if (syncResult == null) {
                 Log.w(logTag, "sync callback not confirmed within timeout")
-                warningMessage = appContext.getString(R.string.sync_intent_not_confirmed)
+                warningMessage = appContext.localizedString(R.string.sync_intent_not_confirmed)
             } else {
                 Log.d(logTag, "sync callback confirmed")
                 syncConfirmed = true
             }
 
-            snapshotRepository.setRefreshing(appContext.getString(R.string.refresh_stage_requesting_export))
+            snapshotRepository.setRefreshing(appContext.localizedString(R.string.refresh_stage_requesting_export))
             val exportRequestStartedAt = System.currentTimeMillis()
             sendCommand(packageName, GadgetbridgeActions.CommandTriggerDatabaseExport)
-            snapshotRepository.setRefreshing(appContext.getString(R.string.refresh_stage_waiting_export))
+            snapshotRepository.setRefreshing(appContext.localizedString(R.string.refresh_stage_waiting_export))
             when (waitForEvent(
                 expected = BridgeEvent.ExportSucceeded,
                 notBeforeMillis = exportRequestStartedAt,
@@ -134,7 +140,7 @@ class GadgetbridgeBridge(
                     snapshotRepository.setRefreshError(
                         gadgetbridgeInstalled = true,
                         exportGranted = true,
-                        message = appContext.getString(R.string.export_failed),
+                        message = appContext.localizedString(R.string.export_failed),
                     )
                     return
                 }
@@ -146,7 +152,7 @@ class GadgetbridgeBridge(
                 null -> {
                     Log.w(logTag, "export callback not confirmed within timeout")
                     if (warningMessage == null) {
-                        warningMessage = appContext.getString(R.string.export_intent_not_confirmed)
+                        warningMessage = appContext.localizedString(R.string.export_intent_not_confirmed)
                     }
                 }
                 else -> Unit
@@ -163,22 +169,22 @@ class GadgetbridgeBridge(
             }
         }
 
-        snapshotRepository.setRefreshing(appContext.getString(R.string.refresh_stage_reading_export))
+        snapshotRepository.setRefreshing(appContext.localizedString(R.string.refresh_stage_reading_export))
         runCatching {
             exportReader.readFromUri(exportUri)
         }.onSuccess { imported ->
             completionMessage = when {
-                !installed -> appContext.getString(R.string.refresh_result_export_only)
-                syncConfirmed && exportConfirmed -> appContext.getString(R.string.refresh_result_intent_ok)
+                !installed -> appContext.localizedString(R.string.refresh_result_export_only)
+                syncConfirmed && exportConfirmed -> appContext.localizedString(R.string.refresh_result_intent_ok)
                 exportFileUpdated && !syncConfirmed && !exportConfirmed ->
-                    appContext.getString(R.string.refresh_result_file_updated_without_callbacks)
+                    appContext.localizedString(R.string.refresh_result_file_updated_without_callbacks)
                 exportFileUpdated && syncConfirmed && !exportConfirmed ->
-                    appContext.getString(R.string.refresh_result_file_updated_without_export_callback)
+                    appContext.localizedString(R.string.refresh_result_file_updated_without_export_callback)
                 exportFileUpdated && !syncConfirmed && exportConfirmed ->
-                    appContext.getString(R.string.refresh_result_file_updated_without_sync_callback)
-                !syncConfirmed && exportConfirmed -> appContext.getString(R.string.refresh_result_export_callback_only)
-                syncConfirmed && !exportConfirmed -> appContext.getString(R.string.refresh_result_sync_callback_only)
-                else -> appContext.getString(R.string.refresh_result_fallback_export)
+                    appContext.localizedString(R.string.refresh_result_file_updated_without_sync_callback)
+                !syncConfirmed && exportConfirmed -> appContext.localizedString(R.string.refresh_result_export_callback_only)
+                syncConfirmed && !exportConfirmed -> appContext.localizedString(R.string.refresh_result_sync_callback_only)
+                else -> appContext.localizedString(R.string.refresh_result_fallback_export)
             }
             snapshotRepository.applyImportedSnapshot(
                 imported.copy(
@@ -201,7 +207,7 @@ class GadgetbridgeBridge(
             snapshotRepository.setRefreshError(
                 gadgetbridgeInstalled = installed,
                 exportGranted = true,
-                message = appContext.getString(R.string.failed_to_read_export),
+                message = appContext.localizedString(R.string.failed_to_read_export),
             )
         }
     }
@@ -249,7 +255,7 @@ class GadgetbridgeBridge(
     }
 
     private fun readExportMetadata(uriString: String): ExportMetadata? {
-        val uri = Uri.parse(uriString)
+        val uri = uriString.toUri()
         return runCatching {
             appContext.contentResolver.query(
                 uri,

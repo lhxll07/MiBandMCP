@@ -1,11 +1,11 @@
 package app.lhx.mibandmcp.data.snapshot
 
-import app.lhx.mibandmcp.data.gb.ImportedBandSnapshot
 import app.lhx.mibandmcp.model.AppSnapshot
 import app.lhx.mibandmcp.model.EndpointInfo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 class SnapshotRepository {
     private val mutableSnapshot = MutableStateFlow(AppSnapshot())
@@ -62,19 +62,9 @@ class SnapshotRepository {
         }
     }
 
-    fun applyImportedSnapshot(imported: ImportedBandSnapshot) {
+    fun applyImportedSnapshot(imported: AppSnapshot) {
         updateSnapshot { current ->
-            current.copy(
-                bandStatus = imported.bandStatus,
-                deviceProfile = imported.deviceProfile,
-                activitySummary = imported.activitySummary,
-                dailyMetrics = imported.dailyMetrics,
-                heartRateSample = imported.heartRateSample,
-                batteryStatus = imported.batteryStatus,
-                stressSample = imported.stressSample,
-                sleepSummary = imported.sleepSummary,
-                syncStatus = imported.syncStatus,
-            )
+            imported.copy(serviceStatus = current.serviceStatus)
         }
     }
 
@@ -88,7 +78,6 @@ class SnapshotRepository {
                 bandStatus = current.bandStatus.copy(
                     gadgetbridgeInstalled = gadgetbridgeInstalled,
                     exportGranted = exportGranted,
-                    dataReady = false,
                 ),
                 syncStatus = current.syncStatus.copy(
                     isRefreshing = false,
@@ -100,6 +89,6 @@ class SnapshotRepository {
     }
 
     private inline fun updateSnapshot(transform: (AppSnapshot) -> AppSnapshot) {
-        mutableSnapshot.value = transform(mutableSnapshot.value)
+        mutableSnapshot.update(transform)
     }
 }
