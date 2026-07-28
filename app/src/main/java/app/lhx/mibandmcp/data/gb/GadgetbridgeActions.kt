@@ -11,8 +11,6 @@ object GadgetbridgeActions {
 
     const val CommandActivitySync =
         "nodomain.freeyourgadget.gadgetbridge.command.ACTIVITY_SYNC"
-    const val CommandTriggerExport =
-        "nodomain.freeyourgadget.gadgetbridge.command.TRIGGER_EXPORT"
     const val CommandTriggerDatabaseExport =
         "nodomain.freeyourgadget.gadgetbridge.command.TRIGGER_DATABASE_EXPORT"
 

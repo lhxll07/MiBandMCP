@@ -1,5 +1,6 @@
 package app.lhx.mibandmcp.service
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -7,14 +8,17 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import app.lhx.mibandmcp.MainActivity
 import app.lhx.mibandmcp.R
 import app.lhx.mibandmcp.appContainer
+import app.lhx.mibandmcp.util.localizedString
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -49,17 +53,16 @@ class McpForegroundService : Service() {
     }
 
     private fun startServiceWork() {
-        startForegroundCompat(buildNotification(getString(R.string.service_starting)))
+        startForegroundCompat(buildNotification(localizedString(R.string.service_starting)))
         scope.launch {
             runCatching {
                 val port = container.settingsStore.preferences.first().port
                 val endpoint = container.mcpServerManager.start(port)
                 container.snapshotRepository.setServiceRunning(isRunning = true, endpoint = endpoint)
-                NotificationManagerCompat.from(this@McpForegroundService)
-                    .notify(NotificationId, buildNotification(endpoint.url))
+                updateNotification(endpoint.url)
             }.onFailure { error ->
                 container.snapshotRepository.setServiceError(
-                    error.message ?: getString(R.string.service_failed_to_start),
+                    error.message ?: localizedString(R.string.service_failed_to_start),
                 )
                 stopSelf()
             }
@@ -81,13 +84,13 @@ class McpForegroundService : Service() {
         )
         return NotificationCompat.Builder(this, ChannelId)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(getString(R.string.notification_title))
+            .setContentTitle(localizedString(R.string.notification_title))
             .setContentText(text)
             .setContentIntent(openAppIntent)
             .addAction(
                 NotificationCompat.Action.Builder(
                     0,
-                    getString(R.string.stop_service),
+                    localizedString(R.string.stop_service),
                     stopIntent,
                 ).build(),
             )
@@ -95,14 +98,24 @@ class McpForegroundService : Service() {
             .build()
     }
 
+    private fun updateNotification(text: String) {
+        val permissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
+        if (permissionGranted) {
+            NotificationManagerCompat.from(this).notify(NotificationId, buildNotification(text))
+        }
+    }
+
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val channel = NotificationChannel(
             ChannelId,
-            getString(R.string.notification_channel_name),
+            localizedString(R.string.notification_channel_name),
             NotificationManager.IMPORTANCE_LOW,
         ).apply {
-            description = getString(R.string.notification_channel_description)
+            description = localizedString(R.string.notification_channel_description)
         }
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
@@ -127,11 +140,7 @@ class McpForegroundService : Service() {
 
         fun start(context: Context) {
             val intent = Intent(context, McpForegroundService::class.java).setAction(ActionStart)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            context.startForegroundService(intent)
         }
 
         fun stop(context: Context) {

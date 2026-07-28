@@ -2,6 +2,7 @@ package app.lhx.mibandmcp.ui
 
 import android.app.Application
 import android.content.Intent
+import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -56,7 +57,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ),
             settings = SettingsUiState(
                 port = preferences.port,
-                autoRefresh = preferences.autoRefresh,
                 exportUri = preferences.exportUri,
             ),
         )
@@ -74,9 +74,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 exportGranted = !preferences.exportUri.isNullOrBlank(),
                 detail = container.snapshotRepository.snapshot.value.bandStatus.detail,
             )
-            if (!preferences.exportUri.isNullOrBlank()) {
-                refreshNow()
-            }
         }
     }
 
@@ -102,17 +99,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onExportFileSelected(uri: Uri?) {
+        if (uri == null) return
         viewModelScope.launch {
-            val uriString = uri?.toString()
-            if (uri != null) {
-                runCatching {
-                    app.contentResolver.takePersistableUriPermission(
-                        uri,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                    )
-                }
+            runCatching {
+                app.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
             }
-            container.settingsStore.setExportUri(uriString)
+            container.settingsStore.setExportUri(uri.toString())
             refreshNow()
         }
     }
@@ -130,11 +125,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun setAutoRefresh(enabled: Boolean) {
-        viewModelScope.launch {
-            container.settingsStore.setAutoRefresh(enabled)
-        }
-    }
 }
 
 data class HomeUiState(
@@ -159,6 +149,5 @@ data class HomeUiState(
 
 data class SettingsUiState(
     val port: Int = AppPreferences().port,
-    val autoRefresh: Boolean = AppPreferences().autoRefresh,
     val exportUri: String? = null,
 )
