@@ -7,7 +7,7 @@ MiBandMCP 保持单应用模块，因为前台服务、ContentResolver 权限和
 | 原则 | 项目中的约束 |
 | --- | --- |
 | 做好一件事 | 应用只把 Gadgetbridge 导出的最新快照提供给 MCP 客户端 |
-| 小而可组合 | Gadgetbridge、快照、协议、服务和 UI 之间使用明确的模型或函数连接 |
+| 小而可组合 | Gadgetbridge、快照、协议、服务和 UI 之间使用明确的模型或函数连接；读取工具与资源共用快照映射 |
 | 文本/结构化数据接口 | MCP 边界使用 JSON-RPC 和 `kotlinx.serialization` |
 | 避免隐式行为 | 刷新由用户或 `band_refresh_now` 显式触发 |
 | 沉默是金 | 后台空闲时不轮询，不创建无意义任务 |
@@ -43,7 +43,7 @@ HTTP 只暴露两个入口：
 - `GET /health`：服务发现和版本检查
 - `POST /mcp`：无会话 JSON-RPC MCP 请求
 
-MCP 工具只执行动作，MCP 资源只读取状态。1.0 不提供调试路由、根页面、会话 DELETE 或与资源重复的读取工具。
+MCP 资源是主要的数据接口。考虑到部分客户端只向模型开放工具，`band_get_data` 提供同一份快照映射的工具入口；`band_refresh_now` 只负责触发刷新。服务不提供调试路由、根页面或会话 DELETE。
 
 ## 运行约束
 

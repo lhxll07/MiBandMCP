@@ -36,10 +36,11 @@ GET http://<phone-ip>:8787/health
 
 ## MCP 接口
 
-MiBandMCP 遵循“动作使用工具，数据使用资源”的单一职责约定。
+MiBandMCP 使用资源提供标准 MCP 数据接口，同时提供读取工具以兼容尚未支持资源的客户端。
 
 工具：
 
+- `band_get_data`：读取完整快照或指定的 `status`、`device`、`activity`、`daily_metrics`、`heart_rate`、`battery`、`stress`、`sleep` 数据
 - `band_refresh_now`：请求一次 Gadgetbridge 同步与数据库导出
 
 资源：

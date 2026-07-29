@@ -1,5 +1,8 @@
 package app.lhx.mibandmcp.ui.home
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -13,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
 import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Lan
@@ -25,6 +29,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,6 +61,8 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     val lastSync = TimeFormatters.relativeTime(context, uiState.lastSyncEpochMillis)
+    val endpointClipLabel = stringResource(R.string.mcp_endpoint_clip_label)
+    val endpointCopiedMessage = stringResource(R.string.endpoint_copied)
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
@@ -82,6 +89,13 @@ fun HomeScreen(
                 message = uiState.serviceMessage,
                 onStart = onStartService,
                 onStop = onStopService,
+                onCopyEndpoint = { endpoint ->
+                    val clipboard = context.getSystemService(ClipboardManager::class.java)
+                    clipboard.setPrimaryClip(
+                        ClipData.newPlainText(endpointClipLabel, endpoint),
+                    )
+                    Toast.makeText(context, endpointCopiedMessage, Toast.LENGTH_SHORT).show()
+                },
             )
         }
         item {
@@ -126,6 +140,7 @@ private fun ServicePanel(
     message: String?,
     onStart: () -> Unit,
     onStop: () -> Unit,
+    onCopyEndpoint: (String) -> Unit,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -178,9 +193,27 @@ private fun ServicePanel(
                 )
             }
             if (isRunning) {
-                FilledTonalButton(onClick = onStop) {
-                    Icon(Icons.Rounded.Stop, contentDescription = null)
-                    Text(stringResource(R.string.stop_service), modifier = Modifier.padding(start = 8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FilledTonalButton(
+                        onClick = onStop,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Rounded.Stop, contentDescription = null)
+                        Text(stringResource(R.string.stop_service), modifier = Modifier.padding(start = 8.dp))
+                    }
+                    OutlinedIconButton(
+                        onClick = { endpoint?.let(onCopyEndpoint) },
+                        enabled = endpoint != null,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ContentCopy,
+                            contentDescription = stringResource(R.string.copy_endpoint),
+                        )
+                    }
                 }
             } else {
                 Button(onClick = onStart) {

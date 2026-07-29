@@ -15,14 +15,81 @@ import org.junit.Test
 
 class McpProtocolTest {
     @Test
-    fun `lists only the refresh action`() {
+    fun `lists data and refresh tools`() {
         val response = protocol().handle(request("tools/list"))
         val names = response?.result
             ?.get("tools")
             ?.jsonArray
             ?.map { it.jsonObject.getValue("name").jsonPrimitive.content }
 
-        assertEquals(listOf("band_refresh_now"), names)
+        assertEquals(listOf("band_get_data", "band_refresh_now"), names)
+    }
+
+    @Test
+    fun `data tool returns the full snapshot by default`() {
+        val snapshot = AppSnapshot(heartRateSample = HeartRateSample(bpm = 72))
+        val response = protocol(snapshot).handle(
+            request(
+                method = "tools/call",
+                params = buildJsonObject {
+                    put("name", JsonPrimitive("band_get_data"))
+                    put("arguments", buildJsonObject {})
+                },
+            ),
+        )
+        val text = response?.result
+            ?.get("content")
+            ?.jsonArray
+            ?.single()
+            ?.jsonObject
+            ?.get("text")
+            ?.jsonPrimitive
+            ?.content
+
+        assertTrue(text.orEmpty().contains("\"heartRateSample\":{\"bpm\":72}"))
+    }
+
+    @Test
+    fun `data tool returns a focused section`() {
+        val snapshot = AppSnapshot(heartRateSample = HeartRateSample(bpm = 72))
+        val response = protocol(snapshot).handle(
+            request(
+                method = "tools/call",
+                params = buildJsonObject {
+                    put("name", JsonPrimitive("band_get_data"))
+                    put("arguments", buildJsonObject {
+                        put("section", JsonPrimitive("heart_rate"))
+                    })
+                },
+            ),
+        )
+        val text = response?.result
+            ?.get("content")
+            ?.jsonArray
+            ?.single()
+            ?.jsonObject
+            ?.get("text")
+            ?.jsonPrimitive
+            ?.content
+
+        assertEquals("{\"bpm\":72}", text)
+    }
+
+    @Test
+    fun `data tool rejects an unknown section`() {
+        val response = protocol().handle(
+            request(
+                method = "tools/call",
+                params = buildJsonObject {
+                    put("name", JsonPrimitive("band_get_data"))
+                    put("arguments", buildJsonObject {
+                        put("section", JsonPrimitive("history"))
+                    })
+                },
+            ),
+        )
+
+        assertTrue(response?.result?.get("isError")?.jsonPrimitive?.content?.toBoolean() == true)
     }
 
     @Test

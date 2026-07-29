@@ -61,10 +61,14 @@ internal class McpProtocol(
             ?.let { it as? JsonPrimitive }
             ?.content
             ?: return error(request.id, -32602, "Missing tool name")
-        if (name != ToolRefreshNow) {
-            return toolResult(request.id, "Unknown tool: $name", isError = true)
+        return when (name) {
+            ToolGetData -> getData(request)
+            ToolRefreshNow -> refresh(request.id)
+            else -> toolResult(request.id, "Unknown tool: $name", isError = true)
         }
+    }
 
+    private fun refresh(id: JsonElement?): JsonRpcResponse {
         requestRefresh()
         val payload = buildJsonObject {
             put("accepted", JsonPrimitive(true))
@@ -73,6 +77,23 @@ internal class McpProtocol(
                 McpJson.encodeToJsonElement(SyncStatus.serializer(), snapshotProvider().syncStatus),
             )
         }
+        return toolResult(id, payload.toString(), isError = false)
+    }
+
+    private fun getData(request: JsonRpcRequest): JsonRpcResponse {
+        val arguments = (request.params as? JsonObject)?.get("arguments") as? JsonObject
+        val section = arguments?.get("section")
+            ?.let { it as? JsonPrimitive }
+            ?.content
+            ?: SectionAll
+        val resourceUri = sectionResourceUris[section]
+            ?: return toolResult(
+                request.id,
+                "Unknown section: $section. Expected one of: ${sectionResourceUris.keys.joinToString()}",
+                isError = true,
+            )
+        val payload = snapshotProvider().resourcePayload(resourceUri)
+            ?: return toolResult(request.id, "Data unavailable for section: $section", isError = true)
         return toolResult(request.id, payload.toString(), isError = false)
     }
 
@@ -176,7 +197,35 @@ internal val McpJson = Json {
     ignoreUnknownKeys = true
 }
 
+private val sectionResourceUris = linkedMapOf(
+    SectionAll to ResourceSnapshot,
+    "status" to ResourceStatus,
+    "device" to ResourceDevice,
+    "activity" to ResourceActivityToday,
+    "daily_metrics" to ResourceDailyMetrics,
+    "heart_rate" to ResourceHeartRateLatest,
+    "battery" to ResourceBatteryLatest,
+    "stress" to ResourceStressLatest,
+    "sleep" to ResourceSleepLatest,
+)
+
 private val toolDefinitions = listOf(
+    buildJsonObject {
+        put("name", JsonPrimitive(ToolGetData))
+        put("description", JsonPrimitive("Read the latest cached Mi Band data. Returns the full snapshot when section is omitted."))
+        put("inputSchema", buildJsonObject {
+            put("type", JsonPrimitive("object"))
+            put("properties", buildJsonObject {
+                put("section", buildJsonObject {
+                    put("type", JsonPrimitive("string"))
+                    put("description", JsonPrimitive("Select all data or one focused section."))
+                    put("enum", JsonArray(sectionResourceUris.keys.map(::JsonPrimitive)))
+                    put("default", JsonPrimitive(SectionAll))
+                })
+            })
+            put("additionalProperties", JsonPrimitive(false))
+        })
+    },
     buildJsonObject {
         put("name", JsonPrimitive(ToolRefreshNow))
         put("description", JsonPrimitive("Request a fresh Gadgetbridge sync and export."))
@@ -203,6 +252,7 @@ private val resourceDefinitions = resources.map(Resource::definition)
 
 private const val JsonRpcVersion = "2.0"
 private const val JsonMimeType = "application/json"
+private const val ToolGetData = "band_get_data"
 private const val ToolRefreshNow = "band_refresh_now"
 private const val ResourceSnapshot = "miband://snapshot"
 private const val ResourceStatus = "miband://status"
@@ -213,3 +263,5 @@ private const val ResourceHeartRateLatest = "miband://heart-rate/latest"
 private const val ResourceBatteryLatest = "miband://battery/latest"
 private const val ResourceStressLatest = "miband://stress/latest"
 private const val ResourceSleepLatest = "miband://sleep/latest"
+
+private const val SectionAll = "all"
